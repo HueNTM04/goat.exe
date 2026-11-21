@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="screen-orientation" content="landscape">
+<title>GOAT.EXE — TRÒ CHƠI ĐANG LỪA BẠN</title>
+<script src="https://bash.tv/bash/v1.js"></script>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div id="topleft">
+    <div id="roundLbl">MÀN 1/5</div>
+    <div id="roundName"></div>
+    <div id="objective"></div>
+    <div id="progress"></div>
+    <div id="checkpointReadout"></div>
+    <div id="dashReadout"><span>HÚC</span><div id="dashTrack"><i id="dashFill"></i></div></div>
+  </div>
+  <div id="topright">
+    <div class="stat"><span>THỜI GIAN</span><b id="sTime">0:00</b></div>
+    <div class="stat"><span>ĐIỂM PHÁ</span><b id="sChaos">0</b></div>
+    <div class="stat"><span>LẦN CHẾT</span><b id="sMist">0</b></div>
+    <button id="btnRestart" title="Thử lại từ mốc lưu (R)" aria-label="Thử lại từ mốc lưu">&#8635;</button>
+  </div>
+  <button id="btnSkip" aria-label="Bỏ qua hướng dẫn">BỎ QUA</button>
+  <div id="dialog"><span class="tag">MC AI</span><span id="dlgText"></span></div>
+  <div id="hint"></div>
+  <div id="chips">
+    <div class="chip" data-chip="move"><kbd>WASD / ↑↓←→</kbd> Di chuyển</div>
+    <div class="chip" data-chip="dash"><kbd>SPACE</kbd> Húc</div>
+    <div class="chip" data-chip="grab"><kbd>E</kbd> Kéo / Thả</div>
+    <div class="chip" data-chip="restart"><kbd>R</kbd> Thử lại</div>
+  </div>
+  <div id="prompt"></div>
+  <div id="floaters"></div>
+</div>
+
+<div id="touch">
+  <div id="joy"><div id="knob"></div></div>
+  <button id="tGrab">KÉO / THẢ</button>
+  <button id="tDash">HÚC</button>
+</div>
+
+<div id="title" class="overlay show" role="dialog" aria-modal="true" aria-labelledby="tutorialHeading">
+  <div class="panel tutorial">
+    <div class="tutorialLogo">GOAT.EXE</div>
+    <h1 id="tutorialHeading">BẠN CÓ ĐỦ TRÌNH LÀM G.O.A.T.?</h1>
+    <div class="tutorialKeys desk">
+      <div><kbd>WASD / ↑ ↓ ← →</kbd><span>Di chuyển</span></div>
+      <div><kbd>SPACE</kbd><span>Húc / Lao tới</span></div>
+      <div><kbd>E</kbd><span>Kéo / Thả đồ vật</span></div>
+      <div><kbd>R</kbd><span>Thử lại</span></div>
+    </div>
+    <div class="tutorialKeys mob">
+      <div><kbd>Cần ảo</kbd><span>Di chuyển</span></div>
+      <div><kbd>HÚC</kbd><span>Húc / Lao tới</span></div>
+      <div><kbd>KÉO / THẢ</kbd><span>Kéo / Thả đồ vật</span></div>
+      <div><kbd>↻</kbd><span>Thử lại</span></div>
+    </div>
+    <p class="tutorialInstruction">Vượt qua thử thách để trở thành G.O.A.T. Nhưng đừng tin mọi thứ bạn nhìn thấy...</p>
+    <p id="bootMsg" role="alert"></p>
+    <button id="btnStart" class="cta loading" aria-busy="true">ĐANG TẢI…</button>
+    <button id="btnTutorial" class="ghostBtn">CHƠI LẠI HƯỚNG DẪN</button>
+  </div>
+</div>
+<div id="card" class="overlay"><div class="cardin"><div id="cardTop"></div><div id="cardName"></div></div></div>
+<div id="fake" class="overlay"><div class="panel" id="fakeIn"></div></div>
+<div id="ending" class="overlay"><div class="panel" id="endIn"></div></div>
+<div id="tutDone" class="overlay" role="dialog" aria-modal="true"><div class="panel tutDonePanel"><div class="tdTop">TUTORIAL COMPLETE —</div><div class="tdMain">BẠN ĐÃ BỊ LỪA LẦN ĐẦU!</div><button id="btnTutNext" class="cta">VÀO MÀN 1</button></div></div>
+<div id="pause" class="overlay" role="dialog" aria-modal="true"><div class="panel pausePanel"><div class="tdTop">TẠM DỪNG</div><p class="pauseTxt">Game đang chờ bạn quay lại.</p><button id="btnResume" class="cta">TIẾP TỤC</button></div></div>
+<div id="glitchFx"></div>
+<div id="rotate" role="alert"><div class="rotIcon"></div><p>Vui lòng xoay ngang điện thoại để chơi GOAT.EXE</p></div>
+
+<script>
+// Startup safety net: if the game can't start, say so and offer a working retry instead of loading forever.
+(function () {
+  var btn = document.getElementById('btnStart'), msg = document.getElementById('bootMsg'), failed = false;
+  window.__goatBootFail = function (why) {
+    if (window.__goatReady || failed) return; failed = true;
+    document.body.classList.add('bootErr'); btn.classList.remove('loading'); btn.removeAttribute('aria-busy'); btn.textContent = 'THỬ LẠI';
+    msg.textContent = why === 'webgl' ? 'Trình duyệt chưa bật được đồ họa 3D (WebGL). Hãy bật "Tăng tốc phần cứng", đóng bớt tab rồi thử lại, hoặc mở bằng Chrome/Safari.'
+      : why === 'slow' ? 'Mạng hơi chậm, game vẫn đang tải… Bấm THỬ LẠI nếu chờ quá lâu.' : 'Game gặp lỗi khi khởi động. Bấm THỬ LẠI để tải lại.';
+    if (why === 'slow') failed = false; // keep waiting; if the game finishes loading it takes over normally
+  };
+  btn.addEventListener('click', function (e) { if (document.body.classList.contains('bootErr') && !window.__goatReady) { e.stopImmediatePropagation(); location.reload(); } }, true);
+  addEventListener('error', function (e) { if (!window.__goatReady && (!e.filename || /game\.js|three\.module/.test(e.filename))) window.__goatBootFail(/WebGL|GOAT_NO_WEBGL/.test(e.message || '') ? 'webgl' : 'error'); });
+  setTimeout(function () { if (!window.__goatReady) window.__goatBootFail('slow'); }, 15000);
+})();
+// taps made before the game finishes loading are remembered, not lost
+document.getElementById('btnStart').addEventListener('click', function () { if (!window.__goatReady && !document.body.classList.contains('bootErr')) window.__goatQueued = 'play'; });
+document.getElementById('btnTutorial').addEventListener('click', function () { if (!window.__goatReady) window.__goatQueued = 'tutorial'; });
+document.addEventListener('touchstart', function () {}, { passive: true }); // lets :active feedback show on iOS
+</script>
+<script type="module" src="game.js" onerror="window.__goatBootFail && window.__goatBootFail('error')"></script>
+</body>
+</html>
